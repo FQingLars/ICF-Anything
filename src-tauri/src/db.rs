@@ -11,9 +11,7 @@ pub struct ResultRow {
 }
 
 pub fn init_db(path: &Path, embedded: &[u8]) -> Result<(), String> {
-    if !path.exists() {
-        std::fs::write(path, embedded).map_err(|e| e.to_string())?;
-    }
+    std::fs::write(path, embedded).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -26,7 +24,7 @@ pub fn search_diagnoses(path: &Path, query: &str) -> Result<Vec<String>, String>
     let pattern: String = format!("%{}%", query);
 
     let mut stmt: Statement = conn
-        .prepare("SELECT DISTINCT Diagnosis FROM DiaToICF WHERE Diagnosis LIKE ?1 LIMIT 20")
+        .prepare("SELECT DISTINCT name FROM DiaToICF WHERE name LIKE ?1 LIMIT 20")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -45,11 +43,9 @@ pub fn get_results(path: &Path, diagnosis: &str) -> Result<Vec<ResultRow>, Strin
 
     let mut stmt: Statement = conn
         .prepare(
-            "SELECT d.Diagnosis, d.ICF, s.Scale, p.Procedures
-             FROM DiaToICF d
-             LEFT JOIN ICFToScale s ON d.ICF = s.ICF
-             LEFT JOIN ICFToProcs p ON d.ICF = p.ICF AND d.Diagnosis = p.Diagnosis
-             WHERE d.Diagnosis = ?1",
+            "SELECT name, code, NULL, NULL
+             FROM DiaToICF
+             WHERE name = ?1",
         )
         .map_err(|e| e.to_string())?;
 
