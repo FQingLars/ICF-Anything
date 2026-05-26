@@ -3,11 +3,28 @@ use serde::Serialize;
 use std::path::Path;
 
 #[derive(Debug, Serialize)]
+pub struct PainScaleInfo {
+    pub scale: i32,
+    pub name: String,
+    pub description: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProcedureDetail {
+    pub id: i32,
+    pub name: String,
+    pub machine: String,
+    pub parameters: String,
+    pub time: String,
+    pub day_course: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct ResultRow {
     pub diagnosis: String,
     pub icf: String,
-    pub scale: Option<String>,
-    pub procedures: Option<String>,
+    pub pain: PainScaleInfo,
+    pub procedure: ProcedureDetail,
 }
 
 pub fn init_db(path: &Path, embedded: &[u8]) -> Result<(), String> {
@@ -24,7 +41,7 @@ pub fn search_diagnoses(path: &Path, query: &str) -> Result<Vec<String>, String>
     let pattern: String = format!("%{}%", query);
 
     let mut stmt: Statement = conn
-        .prepare("SELECT DISTINCT name FROM DiaToICF WHERE name LIKE ?1 LIMIT 20")
+        .prepare("SELECT DISTINCT Diagnosis FROM DiaICFToProcedures WHERE Diagnosis LIKE ?1 LIMIT 20")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -43,9 +60,13 @@ pub fn get_results(path: &Path, diagnosis: &str) -> Result<Vec<ResultRow>, Strin
 
     let mut stmt: Statement = conn
         .prepare(
-            "SELECT name, code, NULL, NULL
-             FROM DiaToICF
-             WHERE name = ?1",
+            "SELECT DISTINCT dp.Diagnosis, dp.ICF, s.Scale, sp.Pain, sp.Description,
+                    pr.ProcedureID, pr.Procedure, pr.Machine, pr.Parameters, pr.Time, pr.DayCourse
+             FROM DiaICFToProcedures dp
+             JOIN ICFToScale s ON dp.ICF = s.ICF
+             JOIN ScaleToPain sp ON s.Scale = sp.Scale
+             JOIN Procedures pr ON dp.ProcedureID = pr.ProcedureID
+             WHERE dp.Diagnosis = ?1",
         )
         .map_err(|e| e.to_string())?;
 
@@ -54,8 +75,19 @@ pub fn get_results(path: &Path, diagnosis: &str) -> Result<Vec<ResultRow>, Strin
             Ok(ResultRow {
                 diagnosis: row.get(0)?,
                 icf: row.get(1)?,
-                scale: row.get(2)?,
-                procedures: row.get(3)?,
+                pain: PainScaleInfo {
+                    scale: row.get(2)?,
+                    name: row.get(3)?,
+                    description: row.get(4)?,
+                },
+                procedure: ProcedureDetail {
+                    id: row.get(5)?,
+                    name: row.get(6)?,
+                    machine: row.get(7)?,
+                    parameters: row.get(8)?,
+                    time: row.get(9)?,
+                    day_course: row.get(10)?,
+                },
             })
         })
         .map_err(|e| e.to_string())?;

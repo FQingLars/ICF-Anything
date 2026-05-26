@@ -2,12 +2,31 @@ import { useState, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
+interface PainScaleInfo {
+  scale: number;
+  name: string;
+  description: string;
+}
+
+interface ProcedureDetail {
+  id: number;
+  name: string;
+  machine: string;
+  parameters: string;
+  time: string;
+  day_course: string;
+}
+
 interface ResultRow {
   diagnosis: string;
   icf: string;
-  scale: string | null;
-  procedures: string | null;
+  pain: PainScaleInfo;
+  procedure: ProcedureDetail;
 }
+
+type TooltipData =
+  | { kind: "pain"; data: PainScaleInfo }
+  | { kind: "procedure"; data: ProcedureDetail };
 
 function App() {
   const [query, setQuery] = useState("");
@@ -16,6 +35,7 @@ function App() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{ tt: TooltipData; x: number; y: number } | null>(null);
   const debounceRef = useRef<number | null>(null);
 
   const searchDiagnoses = useCallback(async (q: string) => {
@@ -60,6 +80,13 @@ function App() {
     }
   };
 
+  const showTooltip = (tt: TooltipData, e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setTooltip({ tt, x: rect.left + rect.width / 2, y: rect.top - 8 });
+  };
+
+  const hideTooltip = () => setTooltip(null);
+
   return (
     <div className="container">
       <header>
@@ -102,19 +129,31 @@ function App() {
           <table className="results-table">
             <thead>
               <tr>
-                <th>Diagnosis</th>
-                <th>ICF</th>
-                <th>Scale</th>
-                <th>Procedures</th>
+                <th>Диагноз</th>
+                <th>Код МКФ</th>
+                <th>Шкала боли</th>
+                <th>Процедура</th>
               </tr>
             </thead>
             <tbody>
               {results.map((r, i) => (
                 <tr key={i}>
                   <td>{r.diagnosis}</td>
-                  <td>{r.icf}</td>
-                  <td>{r.scale || "-"}</td>
-                  <td>{r.procedures || "-"}</td>
+                  <td className="cell-mono">{r.icf}</td>
+                  <td
+                    className="cell-tooltip"
+                    onMouseEnter={(e) => showTooltip({ kind: "pain", data: r.pain }, e)}
+                    onMouseLeave={hideTooltip}
+                  >
+                    {r.pain.scale}
+                  </td>
+                  <td
+                    className="cell-tooltip"
+                    onMouseEnter={(e) => showTooltip({ kind: "procedure", data: r.procedure }, e)}
+                    onMouseLeave={hideTooltip}
+                  >
+                    {r.procedure.name}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -131,6 +170,30 @@ function App() {
           </div>
         )}
       </div>
+
+      {tooltip && (
+        <div
+          className="tooltip"
+          style={{ left: tooltip.x, top: tooltip.y }}
+        >
+          {tooltip.tt.kind === "pain" ? (
+            <>
+              <div className="tooltip-title">{tooltip.tt.data.name}</div>
+              <div className="tooltip-body">{tooltip.tt.data.description}</div>
+            </>
+          ) : (
+            <>
+              <div className="tooltip-title">{tooltip.tt.data.name}</div>
+              <div className="tooltip-body">
+                <div><span className="tooltip-label">Аппарат:</span> {tooltip.tt.data.machine}</div>
+                <div><span className="tooltip-label">Параметры:</span> {tooltip.tt.data.parameters}</div>
+                <div><span className="tooltip-label">Время:</span> {tooltip.tt.data.time}</div>
+                <div><span className="tooltip-label">Курс:</span> {tooltip.tt.data.day_course}</div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
